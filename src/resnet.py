@@ -70,7 +70,7 @@ def apply_conv2d_with_padding(layer, filter_num, kernel_size, stride):
     return layer
 
 def add_standard_building_block(layer, shortcut_fn, filter_num, stride, is_training):
-    """Standard building block for 34-layer ResNet
+    """Standard building block for shallow ResNet (e.g. 34)
 
     Args:
         layer: input layer
@@ -92,7 +92,7 @@ def add_standard_building_block(layer, shortcut_fn, filter_num, stride, is_train
     return layer
 
 def add_bottleneck_building_block(layer, shortcut_fn, filter_num, stride, is_training):
-    """Bottleneck building block for deeper ResNet (50/101/152/..)
+    """Bottleneck building block for deeper ResNet (e.g. 50/101/152/..)
 
     Args:
         layer: input layer
@@ -111,10 +111,48 @@ def add_bottleneck_building_block(layer, shortcut_fn, filter_num, stride, is_tra
     layer = apply_batchnorm_and_relu(layer, is_training)
     layer = apply_conv2d_with_padding(layer, filter_num, 3, stride)
     layer = apply_batchnorm_and_relu(layer, is_training)
+    # bottleneck building block has 4*original_filter_number
     layer = apply_conv2d_with_padding(layer, 4*filter_num, 1, 1)
     layer = layer + shortcut_connection
     return layer
 
+def add_layer_compound(layer, filter_num, building_block_fn, block_num, stride, is_training):
+    """Construct compound layer of building blocks
+
+    Compound layers differs in number of channels (filer_num) and layer width/height
+    Args:
+        layer: input layer
+        filter_num: number of output channels
+        building_block_fn: function used to apply building block
+        block_num: number of building blocks in this layer compound
+        stride: stride of the convolution along the height and width
+        is_training: flag for moving average acculumator
+    Returns:
+        output layer
+    """
+    def shortcut_projection_fn(layer):
+        """Projection tranform from input to output size
+        Args:
+            layer: input layer
+        Returns:
+            output layer
+        """
+        if building_block_fn is add_bottleneck_building_block:
+            # bottleneck building block has 4*original_filter_number
+            layer = apply_conv2d_with_padding(layer, 4*filter_num, 1, stride)
+            return layer
+        else:
+            layer = apply_conv2d_with_padding(layer, filter_num, 1, stride)
+            return layer
+
+    # first building block do the width/height/depth projection
+    layer = building_block_fn(layer, shortcut_projection_fn, filter_num, stride, is_training)
+
+    # other building blocks apply stride = 1 and identity shortcut
+    for _ in xrange(1, block_num):
+        layer = building_block_fn(layer, None, filter_num, 1, is_training)
+
+    return layer
 
 if __name__ == "__main__":
     pass
