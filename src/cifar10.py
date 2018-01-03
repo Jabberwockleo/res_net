@@ -11,10 +11,19 @@ File: cifar10.py
 Author: Wan Li
 Date: 2017/11/27 10:41:01
 """
-import tarfile
+import tensorflow as tf
 import config
 
+def input_fn(is_training):
+    """Input function streaming train/predict data
+
+    Args:
+        is_training: True for get training data, False for prediction
+
+    Returns:
+        images, labels
+    """
+    pass
+
 if __name__ == "__main__":
-    file_path = config.DATA_DIR + config.DATA_URL.split("/")[-1]
-    tarfile.open(file_path, 'r:gz').extractall(config.DATA_DIR)
     pass
