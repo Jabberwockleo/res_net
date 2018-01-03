@@ -14,6 +14,7 @@ Date: 2017/11/27 10:41:01
 
 import math
 import tensorflow as tf
+import config
 
 def apply_batchnorm_and_relu(layer, is_training):
     """Apply batchnorm for resnet v2(K. He 2016) followed by ReLu.
@@ -31,8 +32,7 @@ def apply_batchnorm_and_relu(layer, is_training):
         momentum=0.997, # moving average param
         epsilon=1e-5, # moving average param
         center=True, # add offset of beta
-        scale=True, # multiply by gamma
-        fused=True # recommended by tensorflow sample project
+        scale=True # multiply by gamma
     )
     layer = tf.nn.relu(layer)
     return layer
@@ -53,7 +53,7 @@ def apply_conv2d_with_padding(layer, filter_num, kernel_size, stride):
         # constant stride of 0 if stride > 1
         # SAME padding if stride == 1
         pad_total = kernel_size - 1
-        pad_head = math.floor(pad_total / 2)
+        pad_head = int(math.floor(pad_total / 2))
         pad_tail = pad_total - pad_head
         layer = tf.pad(layer, [[0, 0], [pad_head, pad_tail], [pad_head, pad_tail], [0, 0]])
 
@@ -64,8 +64,7 @@ def apply_conv2d_with_padding(layer, filter_num, kernel_size, stride):
         kernel_size=kernel_size,
         strides=stride,
         padding=("SAME" if stride == 1 else "VALID"),
-        use_bias=False,
-        kernel_initializer=tf.variance_scaling_initializer()
+        use_bias=False
     )
     return layer
 
@@ -154,5 +153,78 @@ def add_layer_compound(layer, filter_num, building_block_fn, block_num, stride, 
 
     return layer
 
+def build_graph(x, is_training):
+    """Build compute graph
+
+    ResNet model for cifar-10 dataset
+    Args:
+        x: input image data
+        is_training: True for training, False for prediction
+    Returns:
+        output layer (logits of classes)
+    """
+    # input transform
+    layer = apply_conv2d_with_padding(
+        layer=x,
+        filter_num=16,
+        kernel_size=3,
+        stride=1
+    )
+    # size: 32x32, depth: 16
+
+    # 1st compound
+    layer = add_layer_compound(
+        layer=layer,
+        filter_num=16,
+        building_block_fn=add_standard_building_block,
+        block_num=5,
+        stride=1,
+        is_training=is_training
+    )
+    # size: 32x32, depth: 16
+
+    # 2nd compound
+    layer = add_layer_compound(
+        layer=layer,
+        filter_num=32,
+        building_block_fn=add_standard_building_block,
+        block_num=5,
+        stride=2,
+        is_training=is_training
+    )
+    # size: 16x16, depth: 32
+
+    # 3rd compound
+    layer = add_layer_compound(
+        layer=layer,
+        filter_num=64,
+        building_block_fn=add_standard_building_block,
+        block_num=5,
+        stride=2,
+        is_training=is_training
+    )
+    # size: 8x8, depth: 64
+
+    # projection output
+    layer = apply_batchnorm_and_relu(layer, is_training)
+    layer = tf.layers.average_pooling2d(
+        inputs=layer,
+        pool_size=8,
+        strides=1,
+        padding="VALID",
+        data_format="channels_last"
+    )
+    layer = tf.reshape(layer, [-1, 64])
+    layer = tf.layers.dense(
+        inputs=layer,
+        units=config.CLASS_NUM
+    )
+    return layer
+
 if __name__ == "__main__":
-    pass
+    with tf.Session() as sess:
+        X = tf.placeholder(
+            tf.float32,
+            [None, config.IMG_HEIGHT, config.IMG_WIDTH, config.IMG_DEPTH]
+        )
+        logits = build_graph(X, True)
