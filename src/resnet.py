@@ -69,6 +69,51 @@ def apply_conv2d_with_padding(layer, filter_num, kernel_size, stride):
     )
     return layer
 
+def add_standard_building_block(layer, shortcut_fn, filter_num, stride, is_training):
+    """Standard building block for 34-layer ResNet
+
+    Args:
+        layer: input layer
+        shortcut_fn: tranform function applied for shortcut
+        filter_num: the number of filters in the convolution
+        stride: stride of the convolution along the height and width
+        is_training: flag for moving average acculumator
+    Returns:
+        output layer
+    """
+    shortcut_connection = layer
+    layer = apply_batchnorm_and_relu(layer, is_training)
+    if shortcut_fn is not None:
+        shortcut_connection = shortcut_fn(layer)
+    layer = apply_conv2d_with_padding(layer, filter_num, 3, stride)
+    layer = apply_batchnorm_and_relu(layer, is_training)
+    layer = apply_conv2d_with_padding(layer, filter_num, 3, 1)
+    layer = layer + shortcut_connection
+    return layer
+
+def add_bottleneck_building_block(layer, shortcut_fn, filter_num, stride, is_training):
+    """Bottleneck building block for deeper ResNet (50/101/152/..)
+
+    Args:
+        layer: input layer
+        shortcut_fn: tranform function applied for shortcut
+        filter_num: the number of filters in the convolution
+        stride: stride of the convolution along the height and width
+        is_training: flag for moving average acculumator
+    Returns:
+        output layer
+    """
+    shortcut_connection = layer
+    layer = apply_batchnorm_and_relu(layer, is_training)
+    if shortcut_fn is not None:
+        shortcut_connection = shortcut_fn(layer)
+    layer = apply_conv2d_with_padding(layer, filter_num, 1, 1)
+    layer = apply_batchnorm_and_relu(layer, is_training)
+    layer = apply_conv2d_with_padding(layer, filter_num, 3, stride)
+    layer = apply_batchnorm_and_relu(layer, is_training)
+    layer = apply_conv2d_with_padding(layer, 4*filter_num, 1, 1)
+    layer = layer + shortcut_connection
+    return layer
 
 
 if __name__ == "__main__":
