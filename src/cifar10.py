@@ -167,7 +167,7 @@ def input_fn(is_training):
 
     # batch config
     dataset.prefetch(config.BATCH_SIZE * 2)
-    dataset.repeat(config.EPOCH_NUM) # training epoches
+    dataset.repeat(config.REPEAT_NUM) # repeats training data
     dataset = dataset.batch(config.BATCH_SIZE) # batch size per epoch
     iterator = dataset.make_one_shot_iterator()
     # data generator

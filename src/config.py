@@ -19,7 +19,7 @@ DATA_URL = "https://www.cs.toronto.edu/~kriz/cifar-10-binary.tar.gz"
 
 # hyper parameters
 LEARNING_RATE = 0.01
-EPOCH_NUM = 1000
+REPEAT_NUM = 1
 BATCH_SIZE = 100
 TRAIN_IMG_NUM = 50000
 VALIDATION_IMG_NUM = 10000
