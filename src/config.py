@@ -14,13 +14,12 @@ Date: 2017/11/27 10:41:01
 
 # environment config
 DATA_DIR = "../data/"
+MODEL_DIR = "../model/"
 DATA_URL = "https://www.cs.toronto.edu/~kriz/cifar-10-binary.tar.gz"
 
-# graph config
-NET_SIZE = 32
-
 # hyper parameters
-EPOCH_NUM = 100
+LEARNING_RATE = 0.01
+EPOCH_NUM = 1000
 BATCH_SIZE = 100
 TRAIN_IMG_NUM = 50000
 VALIDATION_IMG_NUM = 10000

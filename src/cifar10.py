@@ -56,12 +56,40 @@ def model_fn(features, labels, mode, params):
     tf.summary.scalar('cross_entropy', cross_entropy)
 
     if mode == tf.estimator.ModeKeys.TRAIN:
-        # TODO
+        global_step = tf.train.get_or_create_global_step()
+        optimizer = tf.train.MomentumOptimizer(
+                learning_rate=config.LEARNING_RATE,
+                momentum=config.MOMENTUM
+        )
+
+        # batchnorm op denpendencies
+        update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+        with tf.control_dependencies(update_ops):
+            train_op = optimizer.minimize(loss, global_step)
         pass
+    else:
+        train_op = None
+
+    accuracy = tf.metrics.accuracy(
+            tf.argmax(labels, axis=1),
+            predictions["classes"])
+    metrics = {"accuracy": accuracy}
+
+    train_accuracy = tf.identity(accuracy[1], name='train_accuracy')
+    tf.summary.scalar('train_accuracy', train_accuracy)
+
+    return tf.estimator.EstimatorSpec(
+        mode=mode,
+        predictions=predictions,
+        loss=loss,
+        train_op=train_op,
+        eval_metric_ops=metrics)
+
 
 def input_fn(is_training):
     """Input function streaming train/predict data
 
+    Generator maker function, epochs and batch are defined in the generator
     Args:
         is_training: True for get training data, False for prediction
 
@@ -139,8 +167,8 @@ def input_fn(is_training):
 
     # batch config
     dataset.prefetch(config.BATCH_SIZE * 2)
-    dataset.repeat(1)
-    dataset = dataset.batch(config.BATCH_SIZE)
+    dataset.repeat(config.EPOCH_NUM) # training epoches
+    dataset = dataset.batch(config.BATCH_SIZE) # batch size per epoch
     iterator = dataset.make_one_shot_iterator()
     # data generator
     images, labels = iterator.get_next()
@@ -148,12 +176,25 @@ def input_fn(is_training):
 
 
 if __name__ == "__main__":
-    with tf.Session() as sess:
-        X, Y = input_fn(True)
-        for i in xrange(2):
-            print "== iter [%d]" % i
-            print "Y:", tf.shape(Y)
-            print "Y:", sess.run(Y)
-            #print "X:", tf.shape(X)
-            #print "X:", sess.run(X)
-    pass
+    # Set up a RunConfig to only save checkpoints once per training cycle.
+    run_config = tf.estimator.RunConfig().replace(save_checkpoints_secs=1e9)
+    estimator = tf.estimator.Estimator(
+      model_fn=model_fn,
+      model_dir=config.MODEL_DIR,
+      config=run_config,
+      params={})
+
+    for round in xrange(10):
+        tensors_to_log = {
+            'cross_entropy': 'cross_entropy',
+            'train_accuracy': 'train_accuracy'
+        }
+        logging_hook = tf.train.LoggingTensorHook(
+            tensors=tensors_to_log,
+            every_n_iter=100)
+        estimator.train(
+            input_fn=lambda: input_fn(True),
+            hooks=[logging_hook])
+        eval_results = estimator.evaluate(input_fn=lambda: input_fn(False))
+        print "== round [%d]" % (round)
+        print eval_results
